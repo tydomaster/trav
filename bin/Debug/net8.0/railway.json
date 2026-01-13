@@ -1,0 +1,13 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "dotnet publish -c Release -o /app/publish"
+  },
+  "deploy": {
+    "startCommand": "dotnet TravelPlanner.Api.dll",
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  }
+}
+

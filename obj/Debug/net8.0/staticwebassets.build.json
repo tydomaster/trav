@@ -1,0 +1,12 @@
+{
+  "Version": 1,
+  "Hash": "nV4N7RcTxCS2cRTFeRrKFJ2DN7CPw9XGZUwSm0ZXQSs=",
+  "Source": "TravelPlanner.Api",
+  "BasePath": "_content/TravelPlanner.Api",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [],
+  "Assets": [],
+  "Endpoints": []
+}
