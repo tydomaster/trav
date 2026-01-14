@@ -1,3 +1,4 @@
+using System.IO;
 using Microsoft.EntityFrameworkCore;
 using TravelPlanner.Api.Data;
 using TravelPlanner.Api.Middleware;
@@ -13,6 +14,17 @@ builder.Services.AddSwaggerGen();
 // Database
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
     ?? "Data Source=travelplanner.db";
+
+// Для production: создаем директорию для базы данных, если её нет
+if (builder.Environment.IsProduction())
+{
+    var dbPath = connectionString.Replace("Data Source=", "").Split(';')[0];
+    var dbDirectory = Path.GetDirectoryName(dbPath);
+    if (!string.IsNullOrEmpty(dbDirectory) && !Directory.Exists(dbDirectory))
+    {
+        Directory.CreateDirectory(dbDirectory);
+    }
+}
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlite(connectionString));
@@ -50,10 +62,19 @@ if (app.Environment.IsDevelopment())
 }
 
 // Ensure database is created
-using (var scope = app.Services.CreateScope())
+try
 {
-    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    db.Database.EnsureCreated();
+    using (var scope = app.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        db.Database.EnsureCreated();
+    }
+}
+catch (Exception ex)
+{
+    var logger = app.Services.GetRequiredService<ILogger<Program>>();
+    logger.LogError(ex, "Error creating database. Connection string: {ConnectionString}", connectionString);
+    // Продолжаем выполнение, база данных будет создана при первом запросе
 }
 
 // Используем политику для Telegram Web Apps (разрешает все origins)

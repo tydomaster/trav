@@ -165,3 +165,4 @@ G:\trav2\backend\TravelPlanner.Api\obj\Debug\net8.0\TravelPlanner.Api.genruntime
 G:\trav2\backend\TravelPlanner.Api\obj\Debug\net8.0\ref\TravelPlanner.Api.dll
 G:\trav2\backend\TravelPlanner.Api\bin\Debug\net8.0\appsettings.Production.json
 G:\trav2\backend\TravelPlanner.Api\bin\Debug\net8.0\railway.json
+G:\trav2\backend\TravelPlanner.Api\obj\Debug\net8.0\TravelPlanner.Api.sourcelink.json

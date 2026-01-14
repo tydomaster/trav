@@ -33,6 +33,7 @@ public class TelegramAuthMiddleware
         var initData = context.Request.Headers["X-Telegram-Init-Data"].FirstOrDefault() 
             ?? context.Request.Query["initData"].FirstOrDefault();
 
+        var logger = context.RequestServices.GetRequiredService<ILogger<TelegramAuthMiddleware>>();
         User? user = null;
 
         if (!string.IsNullOrEmpty(initData))
@@ -48,6 +49,8 @@ public class TelegramAuthMiddleware
                 {
                     try
                     {
+                        logger.LogInformation("Authenticating user with TelegramId: {TelegramId}", userData.Id);
+                        
                         // Получаем или создаем пользователя
                         user = await dbContext.Users
                             .FirstOrDefaultAsync(u => u.TelegramId == userData.Id);
@@ -64,6 +67,7 @@ public class TelegramAuthMiddleware
                             };
                             dbContext.Users.Add(user);
                             await dbContext.SaveChangesAsync();
+                            logger.LogInformation("Created new user with TelegramId: {TelegramId}, UserId: {UserId}", userData.Id, user.Id);
                         }
                         else
                         {
@@ -73,43 +77,65 @@ public class TelegramAuthMiddleware
                                 user.Avatar = userData.PhotoUrl;
                             user.UpdatedAt = DateTime.UtcNow;
                             await dbContext.SaveChangesAsync();
+                            logger.LogInformation("Updated user with TelegramId: {TelegramId}, UserId: {UserId}", userData.Id, user.Id);
                         }
                     }
                     catch (Exception ex)
                     {
-                        // Логируем ошибку, но продолжаем выполнение
-                        var logger = context.RequestServices.GetRequiredService<ILogger<TelegramAuthMiddleware>>();
                         logger.LogError(ex, "Error creating/updating user from initData");
                     }
+                }
+                else
+                {
+                    logger.LogWarning("Failed to parse user data from initData");
                 }
             }
             else
             {
-                // Логируем неудачную валидацию
-                var logger = context.RequestServices.GetRequiredService<ILogger<TelegramAuthMiddleware>>();
+                // В production невалидный initData = 401
                 logger.LogWarning("Invalid initData received. IsDevelopment: {IsDev}, HasSecretKey: {HasKey}", 
                     _isDevelopment, !string.IsNullOrEmpty(secretKey));
+                
+                if (!_isDevelopment)
+                {
+                    context.Response.StatusCode = 401;
+                    await context.Response.WriteAsync("Invalid or missing Telegram initData");
+                    return;
+                }
             }
         }
         else
         {
-            // Если initData нет, используем мок-пользователя (для разработки)
-            // В production это должно быть запрещено, но для локальной разработки разрешаем
-            var mockTelegramId = long.Parse(_configuration["Dev:MockTelegramId"] ?? "123456789");
-            user = await dbContext.Users
-                .FirstOrDefaultAsync(u => u.TelegramId == mockTelegramId);
-
-            if (user == null)
+            // Если initData нет
+            if (_isDevelopment)
             {
-                user = new User
+                // В development используем мок-пользователя
+                var mockTelegramId = long.Parse(_configuration["Dev:MockTelegramId"] ?? "123456789");
+                logger.LogWarning("No initData provided, using mock user with TelegramId: {TelegramId}", mockTelegramId);
+                
+                user = await dbContext.Users
+                    .FirstOrDefaultAsync(u => u.TelegramId == mockTelegramId);
+
+                if (user == null)
                 {
-                    TelegramId = mockTelegramId,
-                    Name = "Test User",
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
-                dbContext.Users.Add(user);
-                await dbContext.SaveChangesAsync();
+                    user = new User
+                    {
+                        TelegramId = mockTelegramId,
+                        Name = "Test User",
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    };
+                    dbContext.Users.Add(user);
+                    await dbContext.SaveChangesAsync();
+                }
+            }
+            else
+            {
+                // В production отсутствие initData = 401
+                logger.LogWarning("No initData provided in production mode");
+                context.Response.StatusCode = 401;
+                await context.Response.WriteAsync("Telegram initData is required");
+                return;
             }
         }
 
