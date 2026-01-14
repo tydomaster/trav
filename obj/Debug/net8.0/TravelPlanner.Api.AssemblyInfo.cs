@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("TravelPlanner.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+299fa780660399c5d452b07d566c330ca693aebd")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ff1b5ec6bd058fc876130d75b242504dfa340a2e")]
 [assembly: System.Reflection.AssemblyProductAttribute("TravelPlanner.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("TravelPlanner.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

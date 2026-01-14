@@ -15,5 +15,6 @@ public class Item
 
     // Navigation properties
     public Day Day { get; set; } = null!;
+    public Place? Place { get; set; }
 }
 

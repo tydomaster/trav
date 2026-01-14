@@ -16,6 +16,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<Invite> Invites { get; set; }
     public DbSet<Day> Days { get; set; }
     public DbSet<Item> Items { get; set; }
+    public DbSet<Place> Places { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -88,6 +89,19 @@ public class ApplicationDbContext : DbContext
                 .WithMany(d => d.Items)
                 .HasForeignKey(e => e.DayId)
                 .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Place)
+                .WithMany(p => p.Items)
+                .HasForeignKey(e => e.PlaceId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // Place configuration
+        modelBuilder.Entity<Place>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.Address).HasMaxLength(500);
+            entity.Property(e => e.Description).HasMaxLength(1000);
         });
     }
 }
