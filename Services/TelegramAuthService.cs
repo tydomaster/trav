@@ -46,6 +46,17 @@ public class TelegramAuthService : ITelegramAuthService
             logger?.LogInformation("Parameters count: {Count}, Keys: {Keys}", 
                 parameters.Count, string.Join(", ", parameters.Keys));
             
+            // Приоритет: hash (классическая проверка initData для Mini Apps через bot token)
+            // Telegram присылает и signature, и hash, но hash-валидация проще и хорошо документирована.
+            if (hasHash && !string.IsNullOrEmpty(secretKey))
+            {
+                logger?.LogInformation("Using HASH validation (bot token), hash length: {Length}, hasBotToken: {HasKey}", 
+                    hash?.Length ?? 0, true);
+                var result = ValidateInitDataHash(initData, hash!, parameters, secretKey, logger);
+                logger?.LogInformation("HASH validation result: {Result}", result);
+                return result;
+            }
+
             // Новый метод: проверяем наличие signature (Ed25519)
             if (hasSignature)
             {
@@ -56,14 +67,9 @@ public class TelegramAuthService : ITelegramAuthService
             }
             
             // Старый метод: проверяем hash (HMAC-SHA256) - для обратной совместимости
+            // (оставлено для обратной совместимости старых конфигураций)
             if (hasHash && !string.IsNullOrEmpty(secretKey))
-            {
-                logger?.LogInformation("Using HMAC validation, hash length: {Length}, hasSecretKey: {HasKey}", 
-                    hash?.Length ?? 0, !string.IsNullOrEmpty(secretKey));
-                var result = ValidateInitDataHMAC(initData, hash!, parameters, secretKey);
-                logger?.LogInformation("HMAC validation result: {Result}", result);
-                return result;
-            }
+                return ValidateInitDataHMAC(initData, hash!, new Dictionary<string, string>(parameters), secretKey);
             
             // Если нет ни signature, ни hash, или нет secretKey для hash
             logger?.LogWarning("No valid validation method - HasSignature: {HasSignature}, HasHash: {HasHash}, HasSecretKey: {HasSecretKey}", 
@@ -73,6 +79,52 @@ public class TelegramAuthService : ITelegramAuthService
         catch (Exception ex)
         {
             logger?.LogError(ex, "Validation error: {Message}", ex.Message);
+            return false;
+        }
+    }
+
+    // Актуальная проверка initData для Telegram Mini Apps через hash и bot token.
+    // Алгоритм:
+    // 1) Удаляем hash из параметров
+    // 2) Строим data_check_string: пары key=value, отсортированы по key, разделитель '\n'
+    // 3) secret_key = HMAC_SHA256(key="WebAppData", msg=bot_token)
+    // 4) check_hash = HMAC_SHA256(key=secret_key, msg=data_check_string) в hex (lowercase)
+    private bool ValidateInitDataHash(string initData, string hash, Dictionary<string, string> parameters, string botToken, ILogger? logger = null)
+    {
+        try
+        {
+            var dataParams = new Dictionary<string, string>(parameters);
+            dataParams.Remove("hash");
+
+            var dataCheckString = string.Join("\n",
+                dataParams.OrderBy(kvp => kvp.Key)
+                    .Select(kvp => $"{kvp.Key}={kvp.Value}"));
+
+            var botTokenBytes = Encoding.UTF8.GetBytes(botToken);
+            var webAppDataBytes = Encoding.UTF8.GetBytes("WebAppData");
+
+            // secret_key = HMAC_SHA256("WebAppData", bot_token)
+            using var hmac1 = new HMACSHA256(webAppDataBytes);
+            var secretKey = hmac1.ComputeHash(botTokenBytes);
+
+            // check_hash = HMAC_SHA256(secret_key, data_check_string)
+            using var hmac2 = new HMACSHA256(secretKey);
+            var computedHash = hmac2.ComputeHash(Encoding.UTF8.GetBytes(dataCheckString));
+            var computedHashString = Convert.ToHexString(computedHash).ToLowerInvariant();
+
+            var ok = computedHashString == hash.ToLowerInvariant();
+            if (!ok)
+            {
+                logger?.LogWarning("HASH validation failed. ComputedHashPrefix={Prefix}, HashPrefix={HashPrefix}", 
+                    computedHashString.Substring(0, Math.Min(12, computedHashString.Length)),
+                    hash.ToLowerInvariant().Substring(0, Math.Min(12, hash.Length)));
+            }
+
+            return ok;
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "HASH validation error: {Message}", ex.Message);
             return false;
         }
     }

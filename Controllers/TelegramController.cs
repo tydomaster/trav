@@ -23,11 +23,13 @@ public class TelegramController : ControllerBase
         if (string.IsNullOrEmpty(dto.InitData))
             return BadRequest(new { error = "initData is required" });
 
-        var secretKey = _configuration["Telegram:BotSecretKey"] ?? "";
+        var botToken = _configuration["Telegram:BotToken"]
+                      ?? _configuration["Telegram:BotSecretKey"]
+                      ?? "";
         var isDevelopment = _configuration.GetValue<string>("ASPNETCORE_ENVIRONMENT") == "Development";
 
         // В dev режиме пропускаем валидацию
-        var isValid = isDevelopment || _authService.ValidateInitData(dto.InitData, secretKey);
+        var isValid = isDevelopment || _authService.ValidateInitData(dto.InitData, botToken);
 
         if (!isValid)
             return Unauthorized(new { error = "Invalid initData" });
