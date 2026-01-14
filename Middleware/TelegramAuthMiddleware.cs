@@ -113,8 +113,9 @@ public class TelegramAuthMiddleware
             else
             {
                 // В production невалидный initData
-                logger.LogWarning("Invalid initData received. IsDevelopment: {IsDev}, HasSecretKey: {HasKey}, SecretKeyLength: {KeyLength}", 
-                    _isDevelopment, !string.IsNullOrEmpty(secretKey), secretKey.Length);
+                var botToken = _configuration["Telegram:BotToken"] ?? _configuration["Telegram:BotSecretKey"] ?? "";
+                logger.LogWarning("Invalid initData received. IsDevelopment: {IsDev}, HasBotToken: {HasKey}, BotTokenLength: {KeyLength}", 
+                    _isDevelopment, !string.IsNullOrEmpty(botToken), botToken.Length);
                 
                 // Временное решение: если initData присутствует и содержит user, разрешаем работу
                 // Это менее безопасно, но позволяет приложению работать
