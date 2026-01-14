@@ -1,4 +1,5 @@
 using System.IO;
+using System.Linq;
 using Microsoft.EntityFrameworkCore;
 using TravelPlanner.Api.Data;
 using TravelPlanner.Api.Middleware;
@@ -52,6 +53,32 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+// Логируем переменные окружения при старте (только в production для отладки)
+if (app.Environment.IsProduction())
+{
+    var logger = app.Services.GetRequiredService<ILogger<Program>>();
+    var telegramVars = Environment.GetEnvironmentVariables()
+        .Cast<System.Collections.DictionaryEntry>()
+        .Where(e => e.Key?.ToString()?.StartsWith("Telegram", StringComparison.OrdinalIgnoreCase) == true)
+        .Select(e => $"{e.Key}={((e.Value?.ToString()?.Length ?? 0) > 0 ? "***SET***" : "EMPTY")}")
+        .ToList();
+    
+    if (telegramVars.Any())
+    {
+        logger.LogInformation("Telegram environment variables at startup: {Vars}", string.Join(", ", telegramVars));
+    }
+    else
+    {
+        logger.LogWarning("No Telegram environment variables found at startup!");
+    }
+    
+    // Также проверяем через конфигурацию
+    var botTokenFromConfig = builder.Configuration["Telegram:BotToken"];
+    var botSecretFromConfig = builder.Configuration["Telegram:BotSecretKey"];
+    logger.LogInformation("Configuration check - Telegram:BotToken: {HasToken}, Telegram:BotSecretKey: {HasSecret}", 
+        !string.IsNullOrEmpty(botTokenFromConfig), !string.IsNullOrEmpty(botSecretFromConfig));
+}
 
 // Configure the HTTP request pipeline.
 // Включаем Swagger только в Development
