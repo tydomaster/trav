@@ -106,6 +106,14 @@ public class TelegramAuthMiddleware
                 var userData = authService.ParseInitData(initData);
                 if (userData != null)
                 {
+                    logger.LogInformation("Parsed user data - TelegramId: {TelegramId}, FirstName: {FirstName}, LastName: {LastName}, Username: {Username}", 
+                        userData.Id, userData.FirstName, userData.LastName, userData.Username);
+                    
+                    if (userData.Id == 0)
+                    {
+                        logger.LogError("CRITICAL: TelegramId is 0! This means user data parsing failed. Check ParseInitData method.");
+                    }
+                    
                     try
                     {
                         logger.LogInformation("Authenticating user with TelegramId: {TelegramId}", userData.Id);

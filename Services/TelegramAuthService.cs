@@ -13,10 +13,20 @@ public interface ITelegramAuthService
 
 public class TelegramUserData
 {
+    // Telegram использует "id" (lowercase) в JSON
+    [System.Text.Json.Serialization.JsonPropertyName("id")]
     public long Id { get; set; }
+    
+    [System.Text.Json.Serialization.JsonPropertyName("first_name")]
     public string FirstName { get; set; } = string.Empty;
+    
+    [System.Text.Json.Serialization.JsonPropertyName("last_name")]
     public string? LastName { get; set; }
+    
+    [System.Text.Json.Serialization.JsonPropertyName("username")]
     public string? Username { get; set; }
+    
+    [System.Text.Json.Serialization.JsonPropertyName("photo_url")]
     public string? PhotoUrl { get; set; }
 }
 
@@ -242,12 +252,21 @@ public class TelegramAuthService : ITelegramAuthService
                 return null;
 
             var userJson = Uri.UnescapeDataString(userParam);
-            var user = System.Text.Json.JsonSerializer.Deserialize<TelegramUserData>(userJson);
+            
+            // Используем опции для правильного парсинга snake_case
+            var options = new System.Text.Json.JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            };
+            
+            var user = System.Text.Json.JsonSerializer.Deserialize<TelegramUserData>(userJson, options);
 
             return user;
         }
-        catch
+        catch (Exception ex)
         {
+            // Логируем ошибку, но не используем ILogger здесь, так как метод может вызываться без контекста
+            System.Diagnostics.Debug.WriteLine($"[ParseInitData] Error: {ex.Message}");
             return null;
         }
     }
