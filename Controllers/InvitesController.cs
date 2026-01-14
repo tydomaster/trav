@@ -70,7 +70,7 @@ public class InvitesController : ControllerBase
 
         var invite = await _context.Invites
             .Include(i => i.Trip)
-            .FirstOrDefaultAsync(i => i.Token == dto.Token && !i.IsUsed);
+            .FirstOrDefaultAsync(i => i.Token == dto.Token);
 
         if (invite == null)
             return NotFound(new { error = "Invalid or expired invite" });
@@ -92,14 +92,14 @@ public class InvitesController : ControllerBase
         {
             TripId = invite.TripId,
             UserId = userIdValue,
-            Role = MembershipRole.Viewer, // По умолчанию viewer
+            Role = MembershipRole.Editor, // По умолчанию editor (может редактировать)
             CreatedAt = DateTime.UtcNow
         };
 
         _context.Memberships.Add(membership);
 
-        // Помечаем invite как использованный
-        invite.IsUsed = true;
+        // НЕ помечаем invite как использованный - разрешаем повторное использование
+        // invite.IsUsed = true;
 
         await _context.SaveChangesAsync();
 
@@ -121,7 +121,7 @@ public class InvitesController : ControllerBase
             EndDate = trip.EndDate,
             OwnerId = trip.OwnerId,
             OwnerName = trip.Owner.Name,
-            Role = MembershipRoleDto.Viewer,
+            Role = MembershipRoleDto.Editor,
             CreatedAt = trip.CreatedAt,
             UpdatedAt = trip.UpdatedAt,
             Members = trip.Memberships.Select(m => new MemberDto
