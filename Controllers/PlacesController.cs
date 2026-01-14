@@ -36,10 +36,15 @@ public class PlacesController : ControllerBase
             return StatusCode(403, new { error = "Access denied", message = "You do not have access to this trip" });
 
         // Получаем все места из items поездки
+        // Используем Join для правильной работы с nullable PlaceId
         var places = await _context.Items
             .Where(i => i.Day.TripId == tripId && i.PlaceId != null)
-            .Include(i => i.Place)
-            .Select(i => i.Place!)
+            .Join(
+                _context.Places,
+                item => item.PlaceId,
+                place => place.Id,
+                (item, place) => place
+            )
             .Distinct()
             .Select(p => new PlaceDto
             {
