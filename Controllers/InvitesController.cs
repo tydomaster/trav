@@ -40,7 +40,7 @@ public class InvitesController : ControllerBase
         var membership = trip.Memberships.FirstOrDefault(m => m.UserId == userIdValue);
         if (membership == null || 
             (membership.Role != MembershipRole.Owner && membership.Role != MembershipRole.Editor))
-            return Forbid();
+            return StatusCode(403, new { error = "Access denied", message = "Only owner and editor can create invites" });
 
         // Генерируем токен
         var token = GenerateToken();

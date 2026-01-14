@@ -34,7 +34,7 @@ public class ItemsController : ControllerBase
 
         if (membership == null || 
             (membership.Role != MembershipRole.Owner && membership.Role != MembershipRole.Editor))
-            return Forbid();
+            return StatusCode(403, new { error = "Access denied", message = "Only owner and editor can modify items" });
 
         // Проверяем, что день существует и принадлежит поездке
         var day = await _context.Days
@@ -98,7 +98,7 @@ public class ItemsController : ControllerBase
             .AnyAsync(m => m.TripId == tripId && m.UserId == userIdValue);
 
         if (!hasAccess)
-            return Forbid();
+            return StatusCode(403, new { error = "Access denied", message = "You are not a member of this trip" });
 
         var item = await _context.Items
             .FirstOrDefaultAsync(i => i.Id == itemId && i.DayId == dayId);
@@ -139,7 +139,7 @@ public class ItemsController : ControllerBase
 
         if (membership == null || 
             (membership.Role != MembershipRole.Owner && membership.Role != MembershipRole.Editor))
-            return Forbid();
+            return StatusCode(403, new { error = "Access denied", message = "Only owner and editor can modify items" });
 
         var item = await _context.Items
             .FirstOrDefaultAsync(i => i.Id == itemId && i.DayId == dayId);
@@ -197,7 +197,7 @@ public class ItemsController : ControllerBase
 
         if (membership == null || 
             (membership.Role != MembershipRole.Owner && membership.Role != MembershipRole.Editor))
-            return Forbid();
+            return StatusCode(403, new { error = "Access denied", message = "Only owner and editor can modify items" });
 
         var item = await _context.Items
             .FirstOrDefaultAsync(i => i.Id == itemId && i.DayId == dayId);
@@ -227,7 +227,7 @@ public class ItemsController : ControllerBase
 
         if (membership == null || 
             (membership.Role != MembershipRole.Owner && membership.Role != MembershipRole.Editor))
-            return Forbid();
+            return StatusCode(403, new { error = "Access denied", message = "Only owner and editor can modify items" });
 
         // Проверяем, что день существует и принадлежит поездке
         var day = await _context.Days

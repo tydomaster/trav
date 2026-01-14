@@ -33,7 +33,7 @@ public class DaysController : ControllerBase
             .AnyAsync(m => m.TripId == tripId && m.UserId == userIdValue);
 
         if (!hasAccess)
-            return Forbid();
+            return StatusCode(403, new { error = "Access denied", message = "You are not a member of this trip" });
 
         var days = await _context.Days
             .Include(d => d.Items.OrderBy(i => i.Order))
@@ -80,7 +80,7 @@ public class DaysController : ControllerBase
             .AnyAsync(m => m.TripId == tripId && m.UserId == userIdValue);
 
         if (!hasAccess)
-            return Forbid();
+            return StatusCode(403, new { error = "Access denied", message = "You are not a member of this trip" });
 
         var day = await _context.Days
             .Include(d => d.Items.OrderBy(i => i.Order))
@@ -130,7 +130,7 @@ public class DaysController : ControllerBase
 
         if (membership == null || 
             (membership.Role != MembershipRole.Owner && membership.Role != MembershipRole.Editor))
-            return Forbid();
+            return StatusCode(403, new { error = "Access denied", message = "Only owner and editor can modify days" });
 
         // Проверяем, что день с такой датой еще не существует
         var existingDay = await _context.Days
@@ -179,7 +179,7 @@ public class DaysController : ControllerBase
 
         if (membership == null || 
             (membership.Role != MembershipRole.Owner && membership.Role != MembershipRole.Editor))
-            return Forbid();
+            return StatusCode(403, new { error = "Access denied", message = "Only owner and editor can modify days" });
 
         var day = await _context.Days
             .FirstOrDefaultAsync(d => d.Id == dayId && d.TripId == tripId);

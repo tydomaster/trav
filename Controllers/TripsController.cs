@@ -97,7 +97,7 @@ public class TripsController : ControllerBase
         var userIdValue = userId.Value;
         var membership = trip.Memberships.FirstOrDefault(m => m.UserId == userIdValue);
         if (membership == null)
-            return Forbid();
+            return StatusCode(403, new { error = "Access denied", message = "You are not a member of this trip" });
 
         var tripDto = new TripDto
         {
@@ -216,7 +216,7 @@ public class TripsController : ControllerBase
         var userIdValue = userId.Value;
         var currentMembership = trip.Memberships.FirstOrDefault(m => m.UserId == userIdValue);
         if (currentMembership == null || currentMembership.Role != MembershipRole.Owner)
-            return Forbid();
+            return StatusCode(403, new { error = "Access denied", message = "Only trip owner can change member roles" });
 
         // Находим membership для изменения
         var targetMembership = trip.Memberships.FirstOrDefault(m => m.UserId == dto.UserId);
