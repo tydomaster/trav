@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using TravelPlanner.Api.Data;
 using TravelPlanner.Api.DTOs;
 using TravelPlanner.Api.Extensions;
@@ -23,8 +24,15 @@ public class TripsController : ControllerBase
     public async Task<ActionResult<List<TripDto>>> GetMyTrips()
     {
         var userId = User.GetUserId();
+        var telegramId = User.GetTelegramId();
+        
+        // Логируем для отладки
+        var logger = HttpContext.RequestServices.GetRequiredService<ILogger<TripsController>>();
+        logger.LogInformation("GetMyTrips called - UserId: {UserId}, TelegramId: {TelegramId}", userId, telegramId);
+        
         if (userId == null)
         {
+            logger.LogWarning("GetMyTrips - UserId is null, user not authenticated");
             return Unauthorized(new { 
                 error = "Unauthorized", 
                 message = "User not authenticated. Please ensure you are accessing from Telegram Mini App." 
@@ -32,6 +40,7 @@ public class TripsController : ControllerBase
         }
 
         var userIdValue = userId.Value;
+        logger.LogInformation("GetMyTrips - Filtering trips for UserId: {UserId}", userIdValue);
 
         var trips = await _context.Trips
             .Include(t => t.Owner)
@@ -58,6 +67,12 @@ public class TripsController : ControllerBase
                 }).ToList()
             })
             .ToListAsync();
+
+        logger.LogInformation("GetMyTrips - Found {Count} trips for UserId: {UserId}", trips.Count, userIdValue);
+        if (trips.Any())
+        {
+            logger.LogInformation("GetMyTrips - Trip IDs: {TripIds}", string.Join(", ", trips.Select(t => t.Id)));
+        }
 
         return Ok(trips);
     }

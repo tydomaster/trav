@@ -265,6 +265,13 @@ public class TelegramAuthMiddleware
             var identity = new ClaimsIdentity(claims, "Telegram");
             context.User = new ClaimsPrincipal(identity);
             context.Items["CurrentUser"] = user;
+            
+            logger.LogInformation("User authenticated - UserId: {UserId}, TelegramId: {TelegramId}, Name: {Name}", 
+                user.Id, user.TelegramId, user.Name);
+        }
+        else
+        {
+            logger.LogWarning("User is null after authentication attempt");
         }
 
         await _next(context);
