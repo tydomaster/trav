@@ -49,12 +49,16 @@ public class TelegramAuthMiddleware
             // Поддерживаем оба ключа конфигурации для совместимости:
             // - Telegram:BotToken (новый, правильный)
             // - Telegram:BotSecretKey (старый, в проекте ранее использовался под токен)
-            var botToken = _configuration["Telegram:BotToken"]
-                           ?? _configuration["Telegram:BotSecretKey"]
-                           ?? "";
+            var botTokenFromToken = _configuration["Telegram:BotToken"];
+            var botTokenFromSecret = _configuration["Telegram:BotSecretKey"];
+            var botToken = botTokenFromToken ?? botTokenFromSecret ?? "";
             var hasBotToken = !string.IsNullOrEmpty(botToken);
             
-            logger.LogInformation("Validating initData - HasSecretKey: {HasKey}, SecretKeyLength: {KeyLength}", 
+            // Детальное логирование для отладки
+            logger.LogInformation("BotToken config check - Telegram:BotToken: {HasToken} (length: {TokenLength}), Telegram:BotSecretKey: {HasSecret} (length: {SecretLength})", 
+                !string.IsNullOrEmpty(botTokenFromToken), botTokenFromToken?.Length ?? 0,
+                !string.IsNullOrEmpty(botTokenFromSecret), botTokenFromSecret?.Length ?? 0);
+            logger.LogInformation("Validating initData - HasBotToken: {HasKey}, BotTokenLength: {KeyLength}", 
                 hasBotToken, botToken.Length);
             
             // ValidateInitData теперь работает без secretKey для нового метода Ed25519
