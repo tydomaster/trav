@@ -36,11 +36,25 @@ public class TelegramAuthMiddleware
         var logger = context.RequestServices.GetRequiredService<ILogger<TelegramAuthMiddleware>>();
         User? user = null;
 
+        // Логируем для отладки
+        logger.LogInformation("Auth check - Path: {Path}, HasInitData: {HasInitData}, IsDevelopment: {IsDev}", 
+            path, !string.IsNullOrEmpty(initData), _isDevelopment);
+
         if (!string.IsNullOrEmpty(initData))
         {
             // Валидация initData
+            // Новый метод: использует Ed25519 с публичным ключом Telegram (не требует Secret Key)
+            // Старый метод: использует HMAC-SHA256 с Secret Key (для обратной совместимости)
             var secretKey = _configuration["Telegram:BotSecretKey"] ?? "";
-            var isValid = _isDevelopment || authService.ValidateInitData(initData, secretKey);
+            var hasSecretKey = !string.IsNullOrEmpty(secretKey);
+            
+            logger.LogInformation("Validating initData - HasSecretKey: {HasKey}, SecretKeyLength: {KeyLength}", 
+                hasSecretKey, secretKey.Length);
+            
+            // ValidateInitData теперь работает без secretKey для нового метода Ed25519
+            var isValid = _isDevelopment || authService.ValidateInitData(initData, hasSecretKey ? secretKey : null);
+            
+            logger.LogInformation("InitData validation result: {IsValid}", isValid);
 
             if (isValid)
             {
@@ -93,13 +107,17 @@ public class TelegramAuthMiddleware
             else
             {
                 // В production невалидный initData = 401
-                logger.LogWarning("Invalid initData received. IsDevelopment: {IsDev}, HasSecretKey: {HasKey}", 
-                    _isDevelopment, !string.IsNullOrEmpty(secretKey));
+                logger.LogWarning("Invalid initData received. IsDevelopment: {IsDev}, HasSecretKey: {HasKey}, SecretKeyLength: {KeyLength}", 
+                    _isDevelopment, !string.IsNullOrEmpty(secretKey), secretKey.Length);
                 
                 if (!_isDevelopment)
                 {
                     context.Response.StatusCode = 401;
-                    await context.Response.WriteAsync("Invalid or missing Telegram initData");
+                    await context.Response.WriteAsJsonAsync(new { 
+                        error = "Unauthorized", 
+                        message = "Invalid Telegram initData. Please ensure BotSecretKey is configured correctly in Railway.",
+                        hasSecretKey = !string.IsNullOrEmpty(secretKey)
+                    });
                     return;
                 }
             }
@@ -132,9 +150,13 @@ public class TelegramAuthMiddleware
             else
             {
                 // В production отсутствие initData = 401
-                logger.LogWarning("No initData provided in production mode");
+                logger.LogWarning("No initData provided in production mode. Path: {Path}", path);
                 context.Response.StatusCode = 401;
-                await context.Response.WriteAsync("Telegram initData is required");
+                await context.Response.WriteAsJsonAsync(new { 
+                    error = "Unauthorized", 
+                    message = "Telegram initData is required. Please ensure you are opening the app from Telegram Mini App.",
+                    hint = "Check that window.Telegram.WebApp.initData is available in the browser console"
+                });
                 return;
             }
         }
