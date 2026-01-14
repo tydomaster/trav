@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Linq;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using TravelPlanner.Api.Data;
@@ -49,17 +50,51 @@ public class TelegramAuthMiddleware
             // Поддерживаем оба ключа конфигурации для совместимости:
             // - Telegram:BotToken (новый, правильный)
             // - Telegram:BotSecretKey (старый, в проекте ранее использовался под токен)
+            
+            // Пробуем разные варианты чтения конфигурации
             var botTokenFromToken = _configuration["Telegram:BotToken"];
             var botTokenFromSecret = _configuration["Telegram:BotSecretKey"];
-            var botToken = botTokenFromToken ?? botTokenFromSecret ?? "";
+            
+            // Также пробуем через переменные окружения напрямую
+            var botTokenFromEnv1 = Environment.GetEnvironmentVariable("Telegram__BotToken");
+            var botTokenFromEnv2 = Environment.GetEnvironmentVariable("Telegram_BotToken");
+            var botTokenFromEnv3 = Environment.GetEnvironmentVariable("Telegram:BotToken");
+            
+            var botToken = botTokenFromToken 
+                          ?? botTokenFromSecret 
+                          ?? botTokenFromEnv1 
+                          ?? botTokenFromEnv2 
+                          ?? botTokenFromEnv3 
+                          ?? "";
             var hasBotToken = !string.IsNullOrEmpty(botToken);
             
             // Детальное логирование для отладки
-            logger.LogInformation("BotToken config check - Telegram:BotToken: {HasToken} (length: {TokenLength}), Telegram:BotSecretKey: {HasSecret} (length: {SecretLength})", 
-                !string.IsNullOrEmpty(botTokenFromToken), botTokenFromToken?.Length ?? 0,
+            logger.LogInformation("BotToken config check:");
+            logger.LogInformation("  - Telegram:BotToken (config): {HasToken} (length: {TokenLength})", 
+                !string.IsNullOrEmpty(botTokenFromToken), botTokenFromToken?.Length ?? 0);
+            logger.LogInformation("  - Telegram:BotSecretKey (config): {HasSecret} (length: {SecretLength})", 
                 !string.IsNullOrEmpty(botTokenFromSecret), botTokenFromSecret?.Length ?? 0);
-            logger.LogInformation("Validating initData - HasBotToken: {HasKey}, BotTokenLength: {KeyLength}", 
+            logger.LogInformation("  - Telegram__BotToken (env): {HasEnv1} (length: {Env1Length})", 
+                !string.IsNullOrEmpty(botTokenFromEnv1), botTokenFromEnv1?.Length ?? 0);
+            logger.LogInformation("  - Telegram_BotToken (env): {HasEnv2} (length: {Env2Length})", 
+                !string.IsNullOrEmpty(botTokenFromEnv2), botTokenFromEnv2?.Length ?? 0);
+            logger.LogInformation("  - Final result - HasBotToken: {HasKey}, BotTokenLength: {KeyLength}", 
                 hasBotToken, botToken.Length);
+            
+            // Логируем все переменные окружения, начинающиеся с Telegram
+            var telegramVars = Environment.GetEnvironmentVariables()
+                .Cast<System.Collections.DictionaryEntry>()
+                .Where(e => e.Key?.ToString()?.StartsWith("Telegram", StringComparison.OrdinalIgnoreCase) == true)
+                .Select(e => $"{e.Key}={((e.Value?.ToString()?.Length ?? 0) > 0 ? "***" : "EMPTY")}")
+                .ToList();
+            if (telegramVars.Any())
+            {
+                logger.LogInformation("All Telegram environment variables: {Vars}", string.Join(", ", telegramVars));
+            }
+            else
+            {
+                logger.LogWarning("No Telegram environment variables found!");
+            }
             
             // ValidateInitData теперь работает без secretKey для нового метода Ed25519
             var isValid = _isDevelopment || authService.ValidateInitData(initData, hasBotToken ? botToken : null, logger);
