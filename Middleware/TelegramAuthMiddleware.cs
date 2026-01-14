@@ -52,7 +52,7 @@ public class TelegramAuthMiddleware
                 hasSecretKey, secretKey.Length);
             
             // ValidateInitData теперь работает без secretKey для нового метода Ed25519
-            var isValid = _isDevelopment || authService.ValidateInitData(initData, hasSecretKey ? secretKey : null);
+            var isValid = _isDevelopment || authService.ValidateInitData(initData, hasSecretKey ? secretKey : null, logger);
             
             logger.LogInformation("InitData validation result: {IsValid}", isValid);
 
