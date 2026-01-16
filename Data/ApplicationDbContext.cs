@@ -17,6 +17,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<Day> Days { get; set; }
     public DbSet<Item> Items { get; set; }
     public DbSet<Place> Places { get; set; }
+    public DbSet<List> Lists { get; set; }
+    public DbSet<Flight> Flights { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -102,6 +104,36 @@ public class ApplicationDbContext : DbContext
             entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
             entity.Property(e => e.Address).HasMaxLength(500);
             entity.Property(e => e.Description).HasMaxLength(1000);
+        });
+
+        // List configuration
+        modelBuilder.Entity<List>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Text).IsRequired().HasMaxLength(500);
+            entity.HasOne(e => e.Trip)
+                .WithMany(t => t.Lists)
+                .HasForeignKey(e => e.TripId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.AddedBy)
+                .WithMany()
+                .HasForeignKey(e => e.AddedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // Flight configuration
+        modelBuilder.Entity<Flight>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Title).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.Subtitle).HasMaxLength(200);
+            entity.Property(e => e.From).HasMaxLength(100);
+            entity.Property(e => e.To).HasMaxLength(100);
+            entity.Property(e => e.Details).HasMaxLength(500);
+            entity.HasOne(e => e.Trip)
+                .WithMany(t => t.Flights)
+                .HasForeignKey(e => e.TripId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

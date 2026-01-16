@@ -33,12 +33,35 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 // Services
 builder.Services.AddScoped<ITelegramAuthService, TelegramAuthService>();
 
+// External services with fallback to mocks
+var openAiKey = builder.Configuration["OPENAI_API_KEY"];
+if (!string.IsNullOrEmpty(openAiKey))
+{
+    // TODO: Add real OpenAI provider when needed
+    builder.Services.AddScoped<ILlmProvider, MockLlmProvider>();
+}
+else
+{
+    builder.Services.AddScoped<ILlmProvider, MockLlmProvider>();
+}
+
+var placesApiKey = builder.Configuration["PLACES_API_KEY"]; // Google Places or Foursquare
+if (!string.IsNullOrEmpty(placesApiKey))
+{
+    // TODO: Add real Places provider when needed
+    builder.Services.AddScoped<IPlacesProvider, MockPlacesProvider>();
+}
+else
+{
+    builder.Services.AddScoped<IPlacesProvider, MockPlacesProvider>();
+}
+
 // CORS для работы с фронтендом и Telegram
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins("http://localhost:3000")
+        policy.WithOrigins("http://localhost:3000", "http://localhost:5173")
               .AllowAnyHeader()
               .AllowAnyMethod();
     });

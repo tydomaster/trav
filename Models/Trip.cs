@@ -15,5 +15,7 @@ public class Trip
     public ICollection<Membership> Memberships { get; set; } = new List<Membership>();
     public ICollection<Invite> Invites { get; set; } = new List<Invite>();
     public ICollection<Day> Days { get; set; } = new List<Day>();
+    public ICollection<List> Lists { get; set; } = new List<List>();
+    public ICollection<Flight> Flights { get; set; } = new List<Flight>();
 }
 
