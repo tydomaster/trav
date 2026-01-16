@@ -41,7 +41,36 @@ public class TelegramAuthMiddleware
         logger.LogInformation("Auth check - Path: {Path}, HasInitData: {HasInitData}, IsDevelopment: {IsDev}", 
             path, !string.IsNullOrEmpty(initData), _isDevelopment);
 
-        if (!string.IsNullOrEmpty(initData))
+        // Специальная обработка для dev-mode (из фронтенда VITE_DEV_AUTH_BYPASS=true)
+        if (initData == "dev-mode")
+        {
+            logger.LogWarning("Dev-mode initData received. Using mock user for development.");
+            
+            // Используем мок-пользователя
+            var mockTelegramId = long.Parse(_configuration["Dev:MockTelegramId"] ?? "123456789");
+            
+            user = await dbContext.Users
+                .FirstOrDefaultAsync(u => u.TelegramId == mockTelegramId);
+
+            if (user == null)
+            {
+                user = new User
+                {
+                    TelegramId = mockTelegramId,
+                    Name = "Dev User",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                dbContext.Users.Add(user);
+                await dbContext.SaveChangesAsync();
+                logger.LogInformation("Created dev-mode user with TelegramId: {TelegramId}, UserId: {UserId}", mockTelegramId, user.Id);
+            }
+            else
+            {
+                logger.LogInformation("Using existing dev-mode user with TelegramId: {TelegramId}, UserId: {UserId}", mockTelegramId, user.Id);
+            }
+        }
+        else if (!string.IsNullOrEmpty(initData))
         {
             // Валидация initData
             // Новый метод: использует Ed25519 с публичным ключом Telegram (не требует Secret Key)
