@@ -75,6 +75,7 @@ public class PlacesSearchController : ControllerBase
         // Создаем место в базе данных
         var place = new TravelPlanner.Api.Models.Place
         {
+            TripId = tripId,
             Name = placeDetails.Name,
             Latitude = placeDetails.Latitude ?? 0,
             Longitude = placeDetails.Longitude ?? 0,

@@ -35,9 +35,25 @@ public class PlacesController : ControllerBase
         if (!hasAccess)
             return StatusCode(403, new { error = "Access denied", message = "You do not have access to this trip" });
 
-        // Получаем все места из items поездки
-        // Используем Join для правильной работы с nullable PlaceId
-        var places = await _context.Items
+        // Получаем все места, связанные с поездкой:
+        // 1. Места, созданные для этой поездки (TripId == tripId)
+        // 2. Места, используемые в items этой поездки
+        var placesFromTrip = await _context.Places
+            .Where(p => p.TripId == tripId)
+            .Select(p => new PlaceDto
+            {
+                Id = p.Id,
+                Name = p.Name,
+                Latitude = p.Latitude,
+                Longitude = p.Longitude,
+                Address = p.Address,
+                Description = p.Description,
+                CreatedAt = p.CreatedAt,
+                UpdatedAt = p.UpdatedAt
+            })
+            .ToListAsync();
+
+        var placesFromItems = await _context.Items
             .Where(i => i.Day.TripId == tripId && i.PlaceId != null)
             .Join(
                 _context.Places,
@@ -45,6 +61,7 @@ public class PlacesController : ControllerBase
                 place => place.Id,
                 (item, place) => place
             )
+            .Where(p => p.TripId != tripId || p.TripId == null) // Исключаем места, которые уже есть в placesFromTrip
             .Distinct()
             .Select(p => new PlaceDto
             {
@@ -59,7 +76,14 @@ public class PlacesController : ControllerBase
             })
             .ToListAsync();
 
-        return Ok(places);
+        // Объединяем и удаляем дубликаты
+        var allPlaces = placesFromTrip
+            .Concat(placesFromItems)
+            .GroupBy(p => p.Id)
+            .Select(g => g.First())
+            .ToList();
+
+        return Ok(allPlaces);
     }
 
     // GET: api/trips/{tripId}/places/{placeId} - Получить конкретное место
@@ -127,6 +151,7 @@ public class PlacesController : ControllerBase
 
         var place = new Place
         {
+            TripId = tripId,
             Name = dto.Name,
             Latitude = dto.Latitude,
             Longitude = dto.Longitude,

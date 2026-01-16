@@ -19,6 +19,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<Place> Places { get; set; }
     public DbSet<List> Lists { get; set; }
     public DbSet<Flight> Flights { get; set; }
+    public DbSet<Note> Notes { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -104,6 +105,10 @@ public class ApplicationDbContext : DbContext
             entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
             entity.Property(e => e.Address).HasMaxLength(500);
             entity.Property(e => e.Description).HasMaxLength(1000);
+            entity.HasOne(e => e.Trip)
+                .WithMany(t => t.Places)
+                .HasForeignKey(e => e.TripId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         // List configuration
@@ -134,6 +139,22 @@ public class ApplicationDbContext : DbContext
                 .WithMany(t => t.Flights)
                 .HasForeignKey(e => e.TripId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Note configuration
+        modelBuilder.Entity<Note>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Title).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.Content).HasMaxLength(5000);
+            entity.HasOne(e => e.Trip)
+                .WithMany(t => t.Notes)
+                .HasForeignKey(e => e.TripId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }
