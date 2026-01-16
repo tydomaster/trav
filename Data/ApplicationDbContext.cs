@@ -109,6 +109,10 @@ public class ApplicationDbContext : DbContext
                 .WithMany(t => t.Places)
                 .HasForeignKey(e => e.TripId)
                 .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(e => e.AddedBy)
+                .WithMany()
+                .HasForeignKey(e => e.AddedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         // List configuration

@@ -46,26 +46,27 @@ public class FlightsController : ControllerBase
         var flights = await query
             .OrderBy(f => f.Date)
             .ThenBy(f => f.Time)
-            .Select(f => new FlightDto
-            {
-                Id = f.Id,
-                TripId = f.TripId,
-                Category = (int)f.Category,
-                Type = (int)f.Type,
-                Title = f.Title,
-                Subtitle = f.Subtitle,
-                From = f.From,
-                To = f.To,
-                Date = f.Date,
-                Time = f.Time.HasValue ? f.Time.Value.ToString(@"HH\:mm") : null,
-                Status = f.Status.HasValue ? (int)f.Status.Value : null,
-                Details = f.Details,
-                CreatedAt = f.CreatedAt,
-                UpdatedAt = f.UpdatedAt
-            })
             .ToListAsync();
 
-        return Ok(flights);
+        var flightDtos = flights.Select(f => new FlightDto
+        {
+            Id = f.Id,
+            TripId = f.TripId,
+            Category = (int)f.Category,
+            Type = (int)f.Type,
+            Title = f.Title,
+            Subtitle = f.Subtitle,
+            From = f.From,
+            To = f.To,
+            Date = f.Date,
+            Time = f.Time.HasValue ? $"{f.Time.Value.Hours:D2}:{f.Time.Value.Minutes:D2}" : null,
+            Status = f.Status.HasValue ? (int)f.Status.Value : null,
+            Details = f.Details,
+            CreatedAt = f.CreatedAt,
+            UpdatedAt = f.UpdatedAt
+        }).ToList();
+
+        return Ok(flightDtos);
     }
 
     // GET: api/trips/{tripId}/flights/{flightId}
@@ -102,7 +103,7 @@ public class FlightsController : ControllerBase
             From = flight.From,
             To = flight.To,
             Date = flight.Date,
-            Time = flight.Time.HasValue ? flight.Time.Value.ToString(@"HH\:mm") : null,
+            Time = flight.Time.HasValue ? $"{flight.Time.Value.Hours:D2}:{flight.Time.Value.Minutes:D2}" : null,
             Status = flight.Status.HasValue ? (int)flight.Status.Value : null,
             Details = flight.Details,
             CreatedAt = flight.CreatedAt,
@@ -183,7 +184,7 @@ public class FlightsController : ControllerBase
             From = flight.From,
             To = flight.To,
             Date = flight.Date,
-            Time = flight.Time.HasValue ? flight.Time.Value.ToString(@"HH\:mm") : null,
+            Time = flight.Time.HasValue ? $"{flight.Time.Value.Hours:D2}:{flight.Time.Value.Minutes:D2}" : null,
             Status = flight.Status.HasValue ? (int)flight.Status.Value : null,
             Details = flight.Details,
             CreatedAt = flight.CreatedAt,
@@ -251,7 +252,7 @@ public class FlightsController : ControllerBase
             From = flight.From,
             To = flight.To,
             Date = flight.Date,
-            Time = flight.Time.HasValue ? flight.Time.Value.ToString(@"HH\:mm") : null,
+            Time = flight.Time.HasValue ? $"{flight.Time.Value.Hours:D2}:{flight.Time.Value.Minutes:D2}" : null,
             Status = flight.Status.HasValue ? (int)flight.Status.Value : null,
             Details = flight.Details,
             CreatedAt = flight.CreatedAt,

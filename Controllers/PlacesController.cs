@@ -39,6 +39,7 @@ public class PlacesController : ControllerBase
         // 1. Места, созданные для этой поездки (TripId == tripId)
         // 2. Места, используемые в items этой поездки
         var placesFromTrip = await _context.Places
+            .Include(p => p.AddedBy)
             .Where(p => p.TripId == tripId)
             .Select(p => new PlaceDto
             {
@@ -48,6 +49,9 @@ public class PlacesController : ControllerBase
                 Longitude = p.Longitude,
                 Address = p.Address,
                 Description = p.Description,
+                AddedByUserId = p.AddedByUserId,
+                AddedByName = p.AddedBy != null ? p.AddedBy.Name : null,
+                AddedByAvatar = p.AddedBy != null ? p.AddedBy.Avatar : null,
                 CreatedAt = p.CreatedAt,
                 UpdatedAt = p.UpdatedAt
             })
@@ -56,7 +60,7 @@ public class PlacesController : ControllerBase
         var placesFromItems = await _context.Items
             .Where(i => i.Day.TripId == tripId && i.PlaceId != null)
             .Join(
-                _context.Places,
+                _context.Places.Include(p => p.AddedBy),
                 item => item.PlaceId,
                 place => place.Id,
                 (item, place) => place
@@ -71,6 +75,9 @@ public class PlacesController : ControllerBase
                 Longitude = p.Longitude,
                 Address = p.Address,
                 Description = p.Description,
+                AddedByUserId = p.AddedByUserId,
+                AddedByName = p.AddedBy != null ? p.AddedBy.Name : null,
+                AddedByAvatar = p.AddedBy != null ? p.AddedBy.Avatar : null,
                 CreatedAt = p.CreatedAt,
                 UpdatedAt = p.UpdatedAt
             })
@@ -104,6 +111,7 @@ public class PlacesController : ControllerBase
             return StatusCode(403, new { error = "Access denied", message = "You do not have access to this trip" });
 
         var place = await _context.Places
+            .Include(p => p.AddedBy)
             .FirstOrDefaultAsync(p => p.Id == placeId);
 
         if (place == null)
@@ -124,6 +132,9 @@ public class PlacesController : ControllerBase
             Longitude = place.Longitude,
             Address = place.Address,
             Description = place.Description,
+            AddedByUserId = place.AddedByUserId,
+            AddedByName = place.AddedBy != null ? place.AddedBy.Name : null,
+            AddedByAvatar = place.AddedBy != null ? place.AddedBy.Avatar : null,
             CreatedAt = place.CreatedAt,
             UpdatedAt = place.UpdatedAt
         };
@@ -152,6 +163,7 @@ public class PlacesController : ControllerBase
         var place = new Place
         {
             TripId = tripId,
+            AddedByUserId = userIdValue,
             Name = dto.Name,
             Latitude = dto.Latitude,
             Longitude = dto.Longitude,
@@ -164,6 +176,11 @@ public class PlacesController : ControllerBase
         _context.Places.Add(place);
         await _context.SaveChangesAsync();
 
+        // Загружаем AddedBy для DTO
+        await _context.Entry(place)
+            .Reference(p => p.AddedBy)
+            .LoadAsync();
+
         var placeDto = new PlaceDto
         {
             Id = place.Id,
@@ -172,6 +189,9 @@ public class PlacesController : ControllerBase
             Longitude = place.Longitude,
             Address = place.Address,
             Description = place.Description,
+            AddedByUserId = place.AddedByUserId,
+            AddedByName = place.AddedBy != null ? place.AddedBy.Name : null,
+            AddedByAvatar = place.AddedBy != null ? place.AddedBy.Avatar : null,
             CreatedAt = place.CreatedAt,
             UpdatedAt = place.UpdatedAt
         };

@@ -76,6 +76,7 @@ public class PlacesSearchController : ControllerBase
         var place = new TravelPlanner.Api.Models.Place
         {
             TripId = tripId,
+            AddedByUserId = userIdValue,
             Name = placeDetails.Name,
             Latitude = placeDetails.Latitude ?? 0,
             Longitude = placeDetails.Longitude ?? 0,
