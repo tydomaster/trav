@@ -208,5 +208,53 @@ public class PlacesController : ControllerBase
 
         return Ok(placeDto);
     }
+
+    // DELETE: api/trips/{tripId}/places/{placeId} - Удалить место
+    [HttpDelete("{placeId}")]
+    public async Task<IActionResult> DeletePlace(int tripId, int placeId)
+    {
+        var userId = User.GetUserId();
+        if (userId == null)
+            return Unauthorized();
+
+        var userIdValue = userId.Value;
+
+        // Проверяем доступ к поездке (только editor и owner могут удалять места)
+        var membership = await _context.Memberships
+            .FirstOrDefaultAsync(m => m.TripId == tripId && m.UserId == userIdValue);
+
+        if (membership == null || 
+            (membership.Role != MembershipRole.Owner && membership.Role != MembershipRole.Editor))
+            return StatusCode(403, new { error = "Access denied", message = "Only owner and editor can delete places" });
+
+        var place = await _context.Places
+            .FirstOrDefaultAsync(p => p.Id == placeId);
+
+        if (place == null)
+            return NotFound();
+
+        // Проверяем, что место используется в этой поездке
+        var isUsedInTrip = await _context.Items
+            .AnyAsync(i => i.Day.TripId == tripId && i.PlaceId == placeId);
+
+        if (!isUsedInTrip)
+            return StatusCode(403, new { error = "Access denied", message = "Place is not used in this trip" });
+
+        // Удаляем связи из items (устанавливаем PlaceId в null)
+        var itemsWithPlace = await _context.Items
+            .Where(i => i.Day.TripId == tripId && i.PlaceId == placeId)
+            .ToListAsync();
+
+        foreach (var item in itemsWithPlace)
+        {
+            item.PlaceId = null;
+        }
+
+        // Удаляем место
+        _context.Places.Remove(place);
+        await _context.SaveChangesAsync();
+
+        return NoContent();
+    }
 }
 
