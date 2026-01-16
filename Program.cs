@@ -59,17 +59,24 @@ else
 // CORS для работы с фронтендом и Telegram
 builder.Services.AddCors(options =>
 {
+    // Политика для Telegram Web Apps и Vercel (разрешаем все origins)
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins("http://localhost:3000", "http://localhost:5173")
+        policy.AllowAnyOrigin()
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
     
-    // Политика для Telegram Web Apps (разрешаем все origins)
-    options.AddPolicy("TelegramWebApp", policy =>
+    // Альтернативная политика с конкретными origins (если нужна более строгая настройка)
+    options.AddPolicy("SpecificOrigins", policy =>
     {
-        policy.AllowAnyOrigin()
+        policy.WithOrigins(
+                "http://localhost:3000",
+                "http://localhost:5173",
+                "https://travel-vite-olive.vercel.app",
+                "https://*.vercel.app" // Для всех поддоменов Vercel
+              )
+              .SetIsOriginAllowedToAllowWildcardSubdomains()
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
@@ -127,8 +134,8 @@ catch (Exception ex)
     // Продолжаем выполнение, база данных будет создана при первом запросе
 }
 
-// Используем политику для Telegram Web Apps (разрешает все origins)
-app.UseCors("TelegramWebApp");
+// Используем default политику (разрешает все origins для Telegram Web Apps и Vercel)
+app.UseCors();
 app.UseTelegramAuth();
 app.UseAuthorization();
 app.MapControllers();

@@ -130,11 +130,26 @@ public class FlightsController : ControllerBase
             (membership.Role != MembershipRole.Owner && membership.Role != MembershipRole.Editor))
             return StatusCode(403, new { error = "Access denied", message = "Only owner and editor can modify flights" });
 
-        // Парсим время
+        // Парсим время в формате "HH:mm" или "HH:mm:ss"
         TimeSpan? time = null;
-        if (!string.IsNullOrEmpty(dto.Time) && TimeSpan.TryParse(dto.Time, out var parsedTime))
+        if (!string.IsNullOrEmpty(dto.Time))
         {
-            time = parsedTime;
+            // Пробуем разные форматы
+            if (TimeSpan.TryParse(dto.Time, out var parsedTime))
+            {
+                time = parsedTime;
+            }
+            else if (dto.Time.Contains(':'))
+            {
+                // Парсим формат "HH:mm"
+                var parts = dto.Time.Split(':');
+                if (parts.Length >= 2 && 
+                    int.TryParse(parts[0], out var hours) && 
+                    int.TryParse(parts[1], out var minutes))
+                {
+                    time = new TimeSpan(hours, minutes, 0);
+                }
+            }
         }
 
         var flight = new Flight
