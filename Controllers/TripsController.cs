@@ -197,6 +197,76 @@ public class TripsController : ControllerBase
         return CreatedAtAction(nameof(GetTrip), new { id = trip.Id }, tripDto);
     }
 
+    // PUT: api/trips/{id} - Обновить поездку
+    [HttpPut("{id}")]
+    public async Task<ActionResult<TripDto>> UpdateTrip(int id, UpdateTripDto dto)
+    {
+        var userId = User.GetUserId();
+        if (userId == null)
+            return Unauthorized();
+
+        var userIdValue = userId.Value;
+
+        var trip = await _context.Trips
+            .Include(t => t.Owner)
+            .Include(t => t.Memberships)
+                .ThenInclude(m => m.User)
+            .FirstOrDefaultAsync(t => t.Id == id);
+
+        if (trip == null)
+            return NotFound();
+
+        // Проверяем доступ (только owner и editor могут обновлять)
+        var membership = trip.Memberships.FirstOrDefault(m => m.UserId == userIdValue);
+        if (membership == null || 
+            (membership.Role != MembershipRole.Owner && membership.Role != MembershipRole.Editor))
+            return StatusCode(403, new { error = "Access denied", message = "Only owner and editor can update trips" });
+
+        // Обновляем поля
+        if (dto.Title != null)
+            trip.Title = dto.Title;
+        if (dto.StartDate.HasValue)
+            trip.StartDate = dto.StartDate.Value;
+        if (dto.EndDate.HasValue)
+            trip.EndDate = dto.EndDate.Value;
+        
+        trip.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+        // Загружаем обновленные данные
+        await _context.Entry(trip)
+            .Reference(t => t.Owner)
+            .LoadAsync();
+        await _context.Entry(trip)
+            .Collection(t => t.Memberships)
+            .Query()
+            .Include(m => m.User)
+            .LoadAsync();
+
+        var tripDto = new TripDto
+        {
+            Id = trip.Id,
+            Title = trip.Title,
+            StartDate = trip.StartDate,
+            EndDate = trip.EndDate,
+            OwnerId = trip.OwnerId,
+            OwnerName = trip.Owner.Name,
+            Role = (MembershipRoleDto)membership.Role,
+            CreatedAt = trip.CreatedAt,
+            UpdatedAt = trip.UpdatedAt,
+            Members = trip.Memberships.Select(m => new MemberDto
+            {
+                UserId = m.UserId,
+                Name = m.User.Name,
+                Avatar = m.User.Avatar,
+                Role = (MembershipRoleDto)m.Role
+            }).ToList()
+        };
+
+        return Ok(tripDto);
+    }
+
     // PUT: api/trips/5/members/role - Изменить роль участника (только owner)
     [HttpPut("{tripId}/members/role")]
     public async Task<IActionResult> UpdateMemberRole(int tripId, UpdateMembershipRoleDto dto)
