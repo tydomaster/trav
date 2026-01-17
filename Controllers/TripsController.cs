@@ -539,4 +539,91 @@ public class TripsController : ControllerBase
             return StatusCode(500, new { error = "Error uploading image", message = ex.Message });
         }
     }
+
+    // DELETE: api/trips/{tripId}/members/me - Выйти из поездки (для приглашенных пользователей)
+    [HttpDelete("{tripId}/members/me")]
+    public async Task<IActionResult> LeaveTrip(int tripId)
+    {
+        var userId = User.GetUserId();
+        if (userId == null)
+            return Unauthorized();
+
+        var userIdValue = userId.Value;
+
+        var trip = await _context.Trips
+            .Include(t => t.Memberships)
+            .FirstOrDefaultAsync(t => t.Id == tripId);
+
+        if (trip == null)
+            return NotFound();
+
+        var membership = trip.Memberships.FirstOrDefault(m => m.UserId == userIdValue);
+        if (membership == null)
+            return StatusCode(403, new { error = "Access denied", message = "You are not a member of this trip" });
+
+        // Владелец не может выйти из поездки (должен удалить поездку)
+        if (membership.Role == MembershipRole.Owner)
+            return BadRequest(new { error = "Owner cannot leave trip", message = "As trip owner, you must delete the trip instead of leaving it" });
+
+        // Удаляем membership
+        _context.Memberships.Remove(membership);
+        await _context.SaveChangesAsync();
+
+        return NoContent();
+    }
+
+    // DELETE: api/trips/{tripId} - Удалить поездку (только владелец)
+    [HttpDelete("{tripId}")]
+    public async Task<IActionResult> DeleteTrip(int tripId)
+    {
+        var userId = User.GetUserId();
+        if (userId == null)
+            return Unauthorized();
+
+        var userIdValue = userId.Value;
+
+        var trip = await _context.Trips
+            .Include(t => t.Memberships)
+            .FirstOrDefaultAsync(t => t.Id == tripId);
+
+        if (trip == null)
+            return NotFound();
+
+        // Проверяем, что текущий пользователь - владелец
+        var membership = trip.Memberships.FirstOrDefault(m => m.UserId == userIdValue);
+        if (membership == null || membership.Role != MembershipRole.Owner)
+            return StatusCode(403, new { error = "Access denied", message = "Only trip owner can delete the trip" });
+
+        // Удаляем обложку поездки, если она есть
+        if (!string.IsNullOrEmpty(trip.HeroImageUrl))
+        {
+            try
+            {
+                var imageUrl = trip.HeroImageUrl;
+                // Извлекаем имя файла из URL
+                var fileName = imageUrl.Split('/').LastOrDefault();
+                if (!string.IsNullOrEmpty(fileName))
+                {
+                    var uploadsPath = Path.Combine(Directory.GetCurrentDirectory(), "uploads", "trip-images");
+                    var filePath = Path.Combine(uploadsPath, fileName);
+                    if (System.IO.File.Exists(filePath))
+                    {
+                        System.IO.File.Delete(filePath);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                var logger = HttpContext.RequestServices.GetRequiredService<ILogger<TripsController>>();
+                logger.LogWarning(ex, "Failed to delete hero image file for trip {TripId}", tripId);
+                // Продолжаем удаление поездки даже если не удалось удалить файл
+            }
+        }
+
+        // Удаляем поездку (каскадное удаление удалит все связанные данные)
+        _context.Trips.Remove(trip);
+        await _context.SaveChangesAsync();
+
+        return NoContent();
+    }
 }
