@@ -399,21 +399,34 @@ public class TripsController : ControllerBase
             var httpClient = _httpClientFactory.CreateClient();
             var botApiUrl = $"https://api.telegram.org/bot{botToken}/sendDocument";
 
-            // Создаем multipart form data
+            // Создаем multipart form data для Telegram Bot API
             using var formData = new MultipartFormDataContent();
             
             // Добавляем chat_id
             formData.Add(new StringContent(telegramIdValue.ToString()), "chat_id");
             
-            // Читаем файл в поток
-            using var fileStream = pdfData.OpenReadStream();
-            var fileBytes = new byte[pdfData.Length];
-            await fileStream.ReadAsync(fileBytes, 0, (int)pdfData.Length);
+            // Читаем файл в массив байтов
+            byte[] fileBytes;
+            using (var fileStream = pdfData.OpenReadStream())
+            {
+                fileBytes = new byte[pdfData.Length];
+                await fileStream.ReadAsync(fileBytes, 0, (int)pdfData.Length);
+            }
             
-            // Добавляем файл
-            var fileName = $"{trip.Title.Replace(" ", "_")}_{DateTime.UtcNow:yyyy-MM-dd}.pdf";
+            // Формируем безопасное имя файла (только латиница, цифры, подчеркивания и дефисы)
+            var safeTitle = System.Text.RegularExpressions.Regex.Replace(trip.Title, @"[^a-zA-Z0-9\s_-]", "");
+            safeTitle = safeTitle.Replace(" ", "_");
+            if (string.IsNullOrWhiteSpace(safeTitle))
+                safeTitle = "trip";
+            var fileName = $"{safeTitle}_{DateTime.UtcNow:yyyy-MM-dd}.pdf";
+            
+            // Создаем ByteArrayContent для файла (Telegram Bot API требует правильный формат)
             var fileContent = new ByteArrayContent(fileBytes);
             fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+            
+            // Добавляем файл с правильным именем для Telegram Bot API
+            // Формат: Add(content, "fieldName", "fileName")
+            // Имя параметра должно быть "document" для sendDocument
             formData.Add(fileContent, "document", fileName);
 
             // Отправляем запрос
