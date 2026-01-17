@@ -78,6 +78,10 @@ public class InvitesController : ControllerBase
         if (invite.ExpiresAt < DateTime.UtcNow)
             return BadRequest(new { error = "Invite has expired" });
 
+        // Проверяем, не использована ли уже ссылка
+        if (invite.IsUsed)
+            return BadRequest(new { error = "Invite has already been used" });
+
         var userIdValue = userId.Value;
 
         // Проверяем, не является ли пользователь уже участником
@@ -98,8 +102,8 @@ public class InvitesController : ControllerBase
 
         _context.Memberships.Add(membership);
 
-        // НЕ помечаем invite как использованный - разрешаем повторное использование
-        // invite.IsUsed = true;
+        // Помечаем invite как использованный - ссылка одноразовая
+        invite.IsUsed = true;
 
         await _context.SaveChangesAsync();
 
