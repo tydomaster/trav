@@ -134,8 +134,41 @@ catch (Exception ex)
     // Продолжаем выполнение, база данных будет создана при первом запросе
 }
 
-// Используем default политику (разрешает все origins для Telegram Web Apps и Vercel)
+// CORS должен быть установлен ДО всех middleware, которые могут записывать ответы
 app.UseCors();
+
+// Exception handling для обработки ошибок (встроенный middleware корректно работает с CORS)
+app.UseExceptionHandler(errorApp =>
+{
+    errorApp.Run(async context =>
+    {
+        var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+        var exceptionHandlerPathFeature = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerPathFeature>();
+        var exception = exceptionHandlerPathFeature?.Error;
+
+        if (exception != null)
+        {
+            logger.LogError(exception, "Unhandled exception: {Message}", exception.Message);
+        }
+
+        context.Response.StatusCode = 500;
+        context.Response.ContentType = "application/json";
+
+        var errorResponse = new
+        {
+            error = "Internal Server Error",
+            message = app.Environment.IsDevelopment() && exception != null 
+                ? exception.Message 
+                : "An error occurred while processing your request",
+            stackTrace = app.Environment.IsDevelopment() && exception != null 
+                ? exception.StackTrace 
+                : null
+        };
+
+        await context.Response.WriteAsJsonAsync(errorResponse);
+    });
+});
+
 app.UseTelegramAuth();
 app.UseAuthorization();
 app.MapControllers();
