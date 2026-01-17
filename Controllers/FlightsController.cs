@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using TravelPlanner.Api.Data;
 using TravelPlanner.Api.DTOs;
 using TravelPlanner.Api.Extensions;
@@ -12,61 +13,97 @@ namespace TravelPlanner.Api.Controllers;
 public class FlightsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly ILogger<FlightsController> _logger;
 
-    public FlightsController(ApplicationDbContext context)
+    public FlightsController(ApplicationDbContext context, ILogger<FlightsController> logger)
     {
         _context = context;
+        _logger = logger;
     }
 
     // GET: api/trips/{tripId}/flights?category=1
     [HttpGet]
     public async Task<ActionResult<List<FlightDto>>> GetFlights(int tripId, [FromQuery] int? category)
     {
-        var userId = User.GetUserId();
-        if (userId == null)
-            return Unauthorized();
-
-        var userIdValue = userId.Value;
-
-        // Проверяем доступ к поездке
-        var hasAccess = await _context.Memberships
-            .AnyAsync(m => m.TripId == tripId && m.UserId == userIdValue);
-
-        if (!hasAccess)
-            return StatusCode(403, new { error = "Access denied", message = "You are not a member of this trip" });
-
-        var query = _context.Flights
-            .Where(f => f.TripId == tripId);
-
-        if (category.HasValue)
+        try
         {
-            query = query.Where(f => f.Category == (BookingCategory)category.Value);
+            _logger.LogInformation("GetFlights called for tripId: {TripId}, category: {Category}", tripId, category);
+
+            var userId = User.GetUserId();
+            if (userId == null)
+            {
+                _logger.LogWarning("GetFlights: User not authenticated");
+                return Unauthorized();
+            }
+
+            var userIdValue = userId.Value;
+            _logger.LogInformation("GetFlights: UserId: {UserId}", userIdValue);
+
+            // Проверяем доступ к поездке
+            var hasAccess = await _context.Memberships
+                .AnyAsync(m => m.TripId == tripId && m.UserId == userIdValue);
+
+            if (!hasAccess)
+            {
+                _logger.LogWarning("GetFlights: Access denied for UserId: {UserId}, TripId: {TripId}", userIdValue, tripId);
+                return StatusCode(403, new { error = "Access denied", message = "You are not a member of this trip" });
+            }
+
+            _logger.LogInformation("GetFlights: Building query for TripId: {TripId}", tripId);
+            var query = _context.Flights
+                .Where(f => f.TripId == tripId);
+
+            if (category.HasValue)
+            {
+                query = query.Where(f => f.Category == (BookingCategory)category.Value);
+                _logger.LogInformation("GetFlights: Filtering by category: {Category}", category.Value);
+            }
+
+            _logger.LogInformation("GetFlights: Executing query");
+            var flights = await query
+                .OrderBy(f => f.Date)
+                .ThenBy(f => f.Time)
+                .ToListAsync();
+
+            _logger.LogInformation("GetFlights: Found {Count} flights", flights.Count);
+
+            var flightDtos = flights.Select(f =>
+            {
+                try
+                {
+                    return new FlightDto
+                    {
+                        Id = f.Id,
+                        TripId = f.TripId,
+                        Category = (int)f.Category,
+                        Type = (int)f.Type,
+                        Title = f.Title ?? string.Empty,
+                        Subtitle = f.Subtitle ?? string.Empty,
+                        From = f.From ?? string.Empty,
+                        To = f.To ?? string.Empty,
+                        Date = f.Date,
+                        Time = f.Time.HasValue ? $"{f.Time.Value.Hours:D2}:{f.Time.Value.Minutes:D2}" : null,
+                        Status = f.Status.HasValue ? (int)f.Status.Value : null,
+                        Details = f.Details,
+                        CreatedAt = f.CreatedAt,
+                        UpdatedAt = f.UpdatedAt
+                    };
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error mapping flight {FlightId} to DTO", f.Id);
+                    throw;
+                }
+            }).ToList();
+
+            _logger.LogInformation("GetFlights: Successfully mapped {Count} flights to DTOs", flightDtos.Count);
+            return Ok(flightDtos);
         }
-
-        var flights = await query
-            .OrderBy(f => f.Date)
-            .ThenBy(f => f.Time)
-            .ToListAsync();
-
-        var flightDtos = flights.Select(f => new FlightDto
+        catch (Exception ex)
         {
-            Id = f.Id,
-            TripId = f.TripId,
-            Category = (int)f.Category,
-            Type = (int)f.Type,
-            Title = f.Title,
-            Subtitle = f.Subtitle,
-            From = f.From,
-            To = f.To,
-            Date = f.Date,
-            Time = f.Time.HasValue ? $"{f.Time.Value.Hours:D2}:{f.Time.Value.Minutes:D2}" : null,
-            Status = f.Status.HasValue ? (int)f.Status.Value : null,
-            Details = f.Details,
-            CreatedAt = f.CreatedAt,
-            UpdatedAt = f.UpdatedAt
-        }).ToList();
-
-        return Ok(flightDtos);
+            _logger.LogError(ex, "Error in GetFlights for tripId: {TripId}", tripId);
+            throw; // Re-throw to let exception handler middleware handle it
+        }
     }
 
     // GET: api/trips/{tripId}/flights/{flightId}

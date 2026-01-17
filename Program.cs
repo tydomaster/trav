@@ -118,19 +118,54 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-// Ensure database is created
+// Ensure database is created and migrations are applied
 try
 {
     using (var scope = app.Services.CreateScope())
     {
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        db.Database.EnsureCreated();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        
+        logger.LogInformation("Checking database...");
+        
+        // Проверяем, существует ли база данных
+        if (!db.Database.CanConnect())
+        {
+            logger.LogInformation("Database does not exist. Creating...");
+            db.Database.EnsureCreated();
+            logger.LogInformation("Database created successfully.");
+        }
+        else
+        {
+            logger.LogInformation("Database exists. Ensuring schema is up to date...");
+            // Применяем миграции, если они есть
+            try
+            {
+                var pendingMigrations = db.Database.GetPendingMigrations();
+                if (pendingMigrations.Any())
+                {
+                    logger.LogInformation("Applying {Count} pending migrations...", pendingMigrations.Count());
+                    db.Database.Migrate();
+                    logger.LogInformation("Migrations applied successfully.");
+                }
+                else
+                {
+                    logger.LogInformation("No pending migrations. Database is up to date.");
+                }
+            }
+            catch (Exception migrationEx)
+            {
+                logger.LogWarning(migrationEx, "Could not apply migrations. Using EnsureCreated as fallback.");
+                // Если миграции не работают, используем EnsureCreated
+                db.Database.EnsureCreated();
+            }
+        }
     }
 }
 catch (Exception ex)
 {
     var logger = app.Services.GetRequiredService<ILogger<Program>>();
-    logger.LogError(ex, "Error creating database. Connection string: {ConnectionString}", connectionString);
+    logger.LogError(ex, "Error initializing database. Connection string: {ConnectionString}", connectionString);
     // Продолжаем выполнение, база данных будет создана при первом запросе
 }
 
