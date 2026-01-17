@@ -32,6 +32,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 
 // Services
 builder.Services.AddScoped<ITelegramAuthService, TelegramAuthService>();
+builder.Services.AddHttpClient();
 
 // External services with fallback to mocks
 var openAiKey = builder.Configuration["OPENAI_API_KEY"];

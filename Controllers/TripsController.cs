@@ -5,6 +5,8 @@ using TravelPlanner.Api.Data;
 using TravelPlanner.Api.DTOs;
 using TravelPlanner.Api.Extensions;
 using TravelPlanner.Api.Models;
+using System.Text.Json;
+using System.Text;
 
 namespace TravelPlanner.Api.Controllers;
 
@@ -13,10 +15,14 @@ namespace TravelPlanner.Api.Controllers;
 public class TripsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly IConfiguration _configuration;
+    private readonly IHttpClientFactory _httpClientFactory;
 
-    public TripsController(ApplicationDbContext context)
+    public TripsController(ApplicationDbContext context, IConfiguration configuration, IHttpClientFactory httpClientFactory)
     {
         _context = context;
+        _configuration = configuration;
+        _httpClientFactory = httpClientFactory;
     }
 
     // GET: api/trips - Получить мои поездки
@@ -343,5 +349,91 @@ public class TripsController : ControllerBase
         await _context.SaveChangesAsync();
 
         return NoContent();
+    }
+
+    // POST: api/trips/{tripId}/export-pdf - Экспортировать поездку в PDF и отправить в Telegram
+    [HttpPost("{tripId}/export-pdf")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> ExportTripToPdf(int tripId, IFormFile pdfData)
+    {
+        var userId = User.GetUserId();
+        var telegramId = User.GetTelegramId();
+        
+        if (userId == null || telegramId == null)
+            return Unauthorized();
+
+        var userIdValue = userId.Value;
+        var telegramIdValue = telegramId.Value;
+
+        // Проверяем доступ к поездке
+        var trip = await _context.Trips
+            .Include(t => t.Owner)
+            .FirstOrDefaultAsync(t => t.Id == tripId);
+
+        if (trip == null)
+            return NotFound();
+
+        var membership = await _context.Memberships
+            .FirstOrDefaultAsync(m => m.TripId == tripId && m.UserId == userIdValue);
+
+        if (membership == null)
+            return StatusCode(403, new { error = "Access denied", message = "You are not a member of this trip" });
+
+        if (pdfData == null || pdfData.Length == 0)
+        {
+            return BadRequest(new { error = "PDF file is required" });
+        }
+
+        // Отправляем PDF в Telegram через Bot API
+        try
+        {
+            var botToken = _configuration["Telegram:BotToken"] 
+                        ?? _configuration["Telegram:BotSecretKey"] 
+                        ?? "";
+
+            if (string.IsNullOrEmpty(botToken))
+            {
+                return StatusCode(500, new { error = "Bot token not configured" });
+            }
+
+            var httpClient = _httpClientFactory.CreateClient();
+            var botApiUrl = $"https://api.telegram.org/bot{botToken}/sendDocument";
+
+            // Создаем multipart form data
+            using var formData = new MultipartFormDataContent();
+            
+            // Добавляем chat_id
+            formData.Add(new StringContent(telegramIdValue.ToString()), "chat_id");
+            
+            // Читаем файл в поток
+            using var fileStream = pdfData.OpenReadStream();
+            var fileBytes = new byte[pdfData.Length];
+            await fileStream.ReadAsync(fileBytes, 0, (int)pdfData.Length);
+            
+            // Добавляем файл
+            var fileName = $"{trip.Title.Replace(" ", "_")}_{DateTime.UtcNow:yyyy-MM-dd}.pdf";
+            var fileContent = new ByteArrayContent(fileBytes);
+            fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+            formData.Add(fileContent, "document", fileName);
+
+            // Отправляем запрос
+            var response = await httpClient.PostAsync(botApiUrl, formData);
+            var responseContent = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var logger = HttpContext.RequestServices.GetRequiredService<ILogger<TripsController>>();
+                logger.LogError("Failed to send PDF to Telegram: {StatusCode} {Content}", response.StatusCode, responseContent);
+                return StatusCode(500, new { error = "Failed to send PDF to Telegram", details = responseContent });
+            }
+
+            return Ok(new { message = "PDF sent successfully to Telegram" });
+        }
+        catch (Exception ex)
+        {
+            var logger = HttpContext.RequestServices.GetRequiredService<ILogger<TripsController>>();
+            logger.LogError(ex, "Error sending PDF to Telegram");
+            return StatusCode(500, new { error = "Error sending PDF to Telegram", message = ex.Message });
+        }
     }
 }
