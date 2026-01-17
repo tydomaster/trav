@@ -140,11 +140,11 @@ public class ApplicationDbContext : DbContext
             entity.Property(e => e.To).HasMaxLength(100);
             entity.Property(e => e.Details).HasMaxLength(500);
             
-            // Конвертер для TimeSpan в SQLite (хранится как строка "HH:mm:ss" или ticks)
+            // Конвертер для TimeSpan в SQLite (хранится как строка с ticks)
             entity.Property(e => e.Time)
                 .HasConversion(
                     v => v.HasValue ? v.Value.Ticks.ToString() : null,
-                    v => !string.IsNullOrEmpty(v) && long.TryParse(v, out var ticks) ? TimeSpan.FromTicks(ticks) : (TimeSpan?)null);
+                    v => ParseTimeSpan(v));
             
             entity.HasOne(e => e.Trip)
                 .WithMany(t => t.Flights)
@@ -167,6 +167,18 @@ public class ApplicationDbContext : DbContext
                 .HasForeignKey(e => e.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
+    }
+
+    // Вспомогательный метод для парсинга TimeSpan (не может быть в expression tree)
+    private static TimeSpan? ParseTimeSpan(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return null;
+
+        if (long.TryParse(value, out var ticks))
+            return TimeSpan.FromTicks(ticks);
+
+        return null;
     }
 }
 
