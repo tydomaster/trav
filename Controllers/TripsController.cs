@@ -302,4 +302,46 @@ public class TripsController : ControllerBase
 
         return NoContent();
     }
+
+    // DELETE: api/trips/{tripId}/members/{userId} - Удалить участника из поездки
+    [HttpDelete("{tripId}/members/{userId}")]
+    public async Task<IActionResult> RemoveMember(int tripId, int userId)
+    {
+        var currentUserId = User.GetUserId();
+        if (currentUserId == null)
+            return Unauthorized();
+
+        var currentUserIdValue = currentUserId.Value;
+
+        var trip = await _context.Trips
+            .Include(t => t.Memberships)
+            .FirstOrDefaultAsync(t => t.Id == tripId);
+
+        if (trip == null)
+            return NotFound();
+
+        // Проверяем, что текущий пользователь - owner или editor
+        var currentMembership = trip.Memberships.FirstOrDefault(m => m.UserId == currentUserIdValue);
+        if (currentMembership == null || 
+            (currentMembership.Role != MembershipRole.Owner && currentMembership.Role != MembershipRole.Editor))
+            return StatusCode(403, new { error = "Access denied", message = "Only owner and editor can remove members" });
+
+        // Находим membership для удаления
+        var targetMembership = trip.Memberships.FirstOrDefault(m => m.UserId == userId);
+        if (targetMembership == null)
+            return NotFound();
+
+        // Нельзя удалить owner
+        if (targetMembership.Role == MembershipRole.Owner)
+            return BadRequest(new { error = "Cannot remove trip owner" });
+
+        // Нельзя удалить самого себя (только owner может удалять других)
+        if (userId == currentUserIdValue && currentMembership.Role != MembershipRole.Owner)
+            return BadRequest(new { error = "Cannot remove yourself. Only owner can remove members" });
+
+        _context.Memberships.Remove(targetMembership);
+        await _context.SaveChangesAsync();
+
+        return NoContent();
+    }
 }
