@@ -159,6 +159,59 @@ try
                 // Если миграции не работают, используем EnsureCreated
                 db.Database.EnsureCreated();
             }
+            
+            // Убеждаемся, что таблица Flights существует (если её нет в миграциях)
+            try
+            {
+                var connection = db.Database.GetDbConnection();
+                if (connection.State != System.Data.ConnectionState.Open)
+                {
+                    connection.Open();
+                }
+                using var command = connection.CreateCommand();
+                command.CommandText = @"
+                    SELECT name FROM sqlite_master 
+                    WHERE type='table' AND name='Flights';
+                ";
+                var tableExists = command.ExecuteScalar() != null;
+                
+                if (!tableExists)
+                {
+                    logger.LogInformation("Flights table does not exist. Creating...");
+                    command.CommandText = @"
+                        CREATE TABLE IF NOT EXISTS ""Flights"" (
+                            ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_Flights"" PRIMARY KEY AUTOINCREMENT,
+                            ""TripId"" INTEGER NOT NULL,
+                            ""Category"" INTEGER NOT NULL,
+                            ""Type"" INTEGER NOT NULL,
+                            ""Title"" TEXT NOT NULL,
+                            ""Subtitle"" TEXT NULL,
+                            ""From"" TEXT NULL,
+                            ""To"" TEXT NULL,
+                            ""Date"" TEXT NOT NULL,
+                            ""Time"" TEXT NULL,
+                            ""Status"" INTEGER NULL,
+                            ""Details"" TEXT NULL,
+                            ""CreatedAt"" TEXT NOT NULL,
+                            ""UpdatedAt"" TEXT NOT NULL,
+                            CONSTRAINT ""FK_Flights_Trips_TripId"" FOREIGN KEY (""TripId"") REFERENCES ""Trips"" (""Id"") ON DELETE CASCADE
+                        );
+                        CREATE INDEX IF NOT EXISTS ""IX_Flights_TripId"" ON ""Flights"" (""TripId"");
+                    ";
+                    command.ExecuteNonQuery();
+                    logger.LogInformation("Flights table created successfully.");
+                }
+                else
+                {
+                    logger.LogInformation("Flights table already exists.");
+                }
+            }
+            catch (Exception tableEx)
+            {
+                logger.LogWarning(tableEx, "Could not check/create Flights table. Will rely on EnsureCreated.");
+                // Пробуем EnsureCreated как последний вариант
+                db.Database.EnsureCreated();
+            }
         }
     }
 }

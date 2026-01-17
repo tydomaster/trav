@@ -139,6 +139,13 @@ public class ApplicationDbContext : DbContext
             entity.Property(e => e.From).HasMaxLength(100);
             entity.Property(e => e.To).HasMaxLength(100);
             entity.Property(e => e.Details).HasMaxLength(500);
+            
+            // Конвертер для TimeSpan в SQLite (хранится как строка "HH:mm:ss" или ticks)
+            entity.Property(e => e.Time)
+                .HasConversion(
+                    v => v.HasValue ? v.Value.Ticks.ToString() : null,
+                    v => !string.IsNullOrEmpty(v) && long.TryParse(v, out var ticks) ? TimeSpan.FromTicks(ticks) : (TimeSpan?)null);
+            
             entity.HasOne(e => e.Trip)
                 .WithMany(t => t.Flights)
                 .HasForeignKey(e => e.TripId)

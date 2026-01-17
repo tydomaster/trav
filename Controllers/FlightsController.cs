@@ -51,6 +51,7 @@ public class FlightsController : ControllerBase
 
             _logger.LogInformation("GetFlights: Building query for TripId: {TripId}", tripId);
             var query = _context.Flights
+                .AsNoTracking() // Не отслеживаем изменения, только читаем
                 .Where(f => f.TripId == tripId);
 
             if (category.HasValue)
@@ -60,18 +61,27 @@ public class FlightsController : ControllerBase
             }
 
             _logger.LogInformation("GetFlights: Executing query");
-            var flights = await query
-                .OrderBy(f => f.Date)
-                .ThenBy(f => f.Time)
-                .ToListAsync();
+            List<Flight> flights;
+            try
+            {
+                flights = await query
+                    .OrderBy(f => f.Date)
+                    .ThenBy(f => f.Time.HasValue ? f.Time.Value : TimeSpan.MaxValue) // Обрабатываем null для сортировки
+                    .ToListAsync();
+                _logger.LogInformation("GetFlights: Query executed successfully, found {Count} flights", flights.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error executing flights query for TripId: {TripId}", tripId);
+                throw;
+            }
 
-            _logger.LogInformation("GetFlights: Found {Count} flights", flights.Count);
-
-            var flightDtos = flights.Select(f =>
+            var flightDtos = new List<FlightDto>();
+            foreach (var f in flights)
             {
                 try
                 {
-                    return new FlightDto
+                    var dto = new FlightDto
                     {
                         Id = f.Id,
                         TripId = f.TripId,
@@ -88,13 +98,15 @@ public class FlightsController : ControllerBase
                         CreatedAt = f.CreatedAt,
                         UpdatedAt = f.UpdatedAt
                     };
+                    flightDtos.Add(dto);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error mapping flight {FlightId} to DTO", f.Id);
-                    throw;
+                    _logger.LogError(ex, "Error mapping flight {FlightId} to DTO. Flight data: Id={Id}, TripId={TripId}, Title={Title}", 
+                        f.Id, f.Id, f.TripId, f.Title ?? "null");
+                    // Продолжаем обработку остальных записей
                 }
-            }).ToList();
+            }
 
             _logger.LogInformation("GetFlights: Successfully mapped {Count} flights to DTOs", flightDtos.Count);
             return Ok(flightDtos);
