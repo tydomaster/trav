@@ -7,6 +7,7 @@ using TravelPlanner.Api.Extensions;
 using TravelPlanner.Api.Models;
 using System.Text.Json;
 using System.Text;
+using System.Security.Cryptography;
 
 namespace TravelPlanner.Api.Controllers;
 
@@ -59,6 +60,7 @@ public class TripsController : ControllerBase
                 Title = t.Title,
                 StartDate = t.StartDate,
                 EndDate = t.EndDate,
+                HeroImageUrl = t.HeroImageUrl,
                 OwnerId = t.OwnerId,
                 OwnerName = t.Owner.Name,
                 Role = (MembershipRoleDto)t.Memberships.First(m => m.UserId == userIdValue).Role,
@@ -111,6 +113,7 @@ public class TripsController : ControllerBase
             Title = trip.Title,
             StartDate = trip.StartDate,
             EndDate = trip.EndDate,
+            HeroImageUrl = trip.HeroImageUrl,
             OwnerId = trip.OwnerId,
             OwnerName = trip.Owner.Name,
             Role = (MembershipRoleDto)membership.Role,
@@ -186,6 +189,7 @@ public class TripsController : ControllerBase
             Title = trip.Title,
             StartDate = trip.StartDate,
             EndDate = trip.EndDate,
+            HeroImageUrl = trip.HeroImageUrl,
             OwnerId = trip.OwnerId,
             OwnerName = trip.Owner.Name,
             Role = MembershipRoleDto.Owner,
@@ -235,6 +239,8 @@ public class TripsController : ControllerBase
             trip.StartDate = dto.StartDate.Value;
         if (dto.EndDate.HasValue)
             trip.EndDate = dto.EndDate.Value;
+        if (dto.HeroImageUrl != null)
+            trip.HeroImageUrl = dto.HeroImageUrl;
         
         trip.UpdatedAt = DateTime.UtcNow;
 
@@ -256,6 +262,7 @@ public class TripsController : ControllerBase
             Title = trip.Title,
             StartDate = trip.StartDate,
             EndDate = trip.EndDate,
+            HeroImageUrl = trip.HeroImageUrl,
             OwnerId = trip.OwnerId,
             OwnerName = trip.Owner.Name,
             Role = (MembershipRoleDto)membership.Role,
@@ -447,6 +454,89 @@ public class TripsController : ControllerBase
             var logger = HttpContext.RequestServices.GetRequiredService<ILogger<TripsController>>();
             logger.LogError(ex, "Error sending PDF to Telegram");
             return StatusCode(500, new { error = "Error sending PDF to Telegram", message = ex.Message });
+        }
+    }
+
+    // POST: api/trips/{tripId}/hero-image - Загрузить обложку поездки
+    [HttpPost("{tripId}/hero-image")]
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult<object>> UploadHeroImage(int tripId, IFormFile image)
+    {
+        var userId = User.GetUserId();
+        if (userId == null)
+            return Unauthorized();
+
+        var userIdValue = userId.Value;
+
+        // Проверяем доступ к поездке
+        var trip = await _context.Trips
+            .FirstOrDefaultAsync(t => t.Id == tripId);
+
+        if (trip == null)
+            return NotFound();
+
+        var membership = await _context.Memberships
+            .FirstOrDefaultAsync(m => m.TripId == tripId && m.UserId == userIdValue);
+
+        if (membership == null)
+            return StatusCode(403, new { error = "Access denied", message = "You are not a member of this trip" });
+
+        // Проверяем права (только owner и editor могут загружать обложку)
+        if (membership.Role != MembershipRole.Owner && membership.Role != MembershipRole.Editor)
+            return StatusCode(403, new { error = "Access denied", message = "Only owner and editor can upload hero image" });
+
+        if (image == null || image.Length == 0)
+            return BadRequest(new { error = "Image file is required" });
+
+        // Проверяем тип файла
+        var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp" };
+        var fileExtension = Path.GetExtension(image.FileName).ToLowerInvariant();
+        if (!allowedExtensions.Contains(fileExtension))
+            return BadRequest(new { error = "Invalid file type", message = "Only JPG, JPEG, PNG, and WEBP are allowed" });
+
+        // Проверяем размер файла (максимум 5 МБ)
+        const long maxFileSize = 5 * 1024 * 1024; // 5 MB
+        if (image.Length > maxFileSize)
+            return BadRequest(new { error = "File too large", message = "Maximum file size is 5 MB" });
+
+        try
+        {
+            // Создаем директорию для изображений, если её нет
+            var uploadsPath = Path.Combine(Directory.GetCurrentDirectory(), "uploads", "trip-images");
+            if (!Directory.Exists(uploadsPath))
+            {
+                Directory.CreateDirectory(uploadsPath);
+            }
+
+            // Генерируем уникальное имя файла
+            var fileName = $"{tripId}_{Guid.NewGuid():N}{fileExtension}";
+            var filePath = Path.Combine(uploadsPath, fileName);
+
+            // Сохраняем файл
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await image.CopyToAsync(stream);
+            }
+
+            // Генерируем URL для доступа к файлу
+            var baseUrl = $"{Request.Scheme}://{Request.Host}";
+            var imageUrl = $"{baseUrl}/uploads/trip-images/{fileName}";
+
+            // Обновляем URL обложки в базе данных
+            trip.HeroImageUrl = imageUrl;
+            trip.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { 
+                heroImageUrl = imageUrl,
+                message = "Hero image uploaded successfully" 
+            });
+        }
+        catch (Exception ex)
+        {
+            var logger = HttpContext.RequestServices.GetRequiredService<ILogger<TripsController>>();
+            logger.LogError(ex, "Error uploading hero image");
+            return StatusCode(500, new { error = "Error uploading image", message = ex.Message });
         }
     }
 }

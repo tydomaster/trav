@@ -6,6 +6,7 @@ public class TripDto
     public string Title { get; set; } = string.Empty;
     public DateTime? StartDate { get; set; }
     public DateTime? EndDate { get; set; }
+    public string? HeroImageUrl { get; set; }
     public int OwnerId { get; set; }
     public string OwnerName { get; set; } = string.Empty;
     public MembershipRoleDto Role { get; set; }

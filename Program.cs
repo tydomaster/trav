@@ -206,6 +206,29 @@ try
                 {
                     logger.LogInformation("Flights table already exists.");
                 }
+
+                // Проверяем и добавляем поле HeroImageUrl в таблицу Trips, если его нет
+                try
+                {
+                    command.CommandText = "SELECT COUNT(*) FROM pragma_table_info('Trips') WHERE name='HeroImageUrl'";
+                    var hasHeroImageUrl = Convert.ToInt32(command.ExecuteScalar());
+                    
+                    if (hasHeroImageUrl == 0)
+                    {
+                        logger.LogInformation("HeroImageUrl column does not exist. Adding...");
+                        command.CommandText = @"ALTER TABLE ""Trips"" ADD COLUMN ""HeroImageUrl"" TEXT NULL;";
+                        command.ExecuteNonQuery();
+                        logger.LogInformation("HeroImageUrl column added successfully.");
+                    }
+                    else
+                    {
+                        logger.LogInformation("HeroImageUrl column already exists.");
+                    }
+                }
+                catch (Exception heroImageEx)
+                {
+                    logger.LogWarning(heroImageEx, "Could not check/add HeroImageUrl column. Will rely on EnsureCreated.");
+                }
             }
             catch (Exception tableEx)
             {
@@ -260,6 +283,20 @@ app.UseExceptionHandler(errorApp =>
 
 app.UseTelegramAuth();
 app.UseAuthorization();
+
+// Настройка статических файлов для отдачи изображений
+var uploadsPath = Path.Combine(Directory.GetCurrentDirectory(), "uploads");
+if (!Directory.Exists(uploadsPath))
+{
+    Directory.CreateDirectory(uploadsPath);
+}
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(uploadsPath),
+    RequestPath = "/uploads"
+});
+
 app.MapControllers();
 
 app.Run();
